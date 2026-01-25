@@ -1,0 +1,64 @@
+@Injectable({ providedIn: 'root' })
+export class BreadcrumbService {
+  readonly breadcrumbs$: Observable<Breadcrumb[]>;
+
+  constructor(private router: Router) {
+    this.breadcrumbs$ = this.router.events.pipe(
+      filter(e => e instanceof NavigationEnd),
+      map(() => this.buildBreadcrumbs(this.router.routerState.snapshot.root))
+    );
+  }
+
+  private buildBreadcrumbs(snapshot: ActivatedRouteSnapshot): Breadcrumb[] {
+    const crumbs: Breadcrumb[] = [];
+
+    // On parcourt l'arbre des routes jusqu'à la feuille active
+    let currentRoute: ActivatedRouteSnapshot | null = snapshot;
+    while (currentRoute.firstChild) {
+      currentRoute = currentRoute.firstChild;
+    }
+
+    // Si la route active a un breadcrumbId, on remonte la chaîne
+    const breadcrumbId = currentRoute.data?.['breadcrumbId'] as BreadcrumbId;
+    if (breadcrumbId) {
+      this.addBreadcrumbRecursively(breadcrumbId, currentRoute, crumbs);
+    }
+
+    // On inverse le tableau car on a remonté de l'enfant vers le parent
+    return crumbs.reverse();
+  }
+
+  private addBreadcrumbRecursively(id: BreadcrumbId, node: ActivatedRouteSnapshot, crumbs: Breadcrumb[]): void {
+    const def = BREADCRUMB_DEFINITIONS[id];
+    if (!def) return;
+
+    // 1. Ajouter l'élément actuel
+    crumbs.push({
+      label: def.label,
+      url: def.url(node.params)
+    });
+
+    // 2. Si un parentId est défini dans la config (BREADCRUMB_DEFINITIONS) 
+    // ou dans la data de la route, on continue la récursion
+    const parentId = def.parentId || node.data?.['parentId'];
+    
+    if (parentId) {
+      this.addBreadcrumbRecursively(parentId, node, crumbs);
+    }
+  }
+}
+
+
+
+export const BREADCRUMB_DEFINITIONS = {
+  [BreadcrumbId.CHILD]: {
+    label: 'Enfant',
+    url: (params) => `/parent/${params.id}/child`,
+    parentId: BreadcrumbId.PARENT // <--- La clé de la récursion est ici
+  },
+  [BreadcrumbId.PARENT]: {
+    label: 'Parent',
+    url: () => '/parent',
+    parentId: BreadcrumbId.HOME
+  }
+};
