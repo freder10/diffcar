@@ -1,127 +1,19 @@
-import { Component } from '@angular/core';
-import { Router, NavigationEnd } from '@angular/router';
-import { filter, map, startWith } from 'rxjs/operators';
-import { Observable } from 'rxjs';
-
-@Component({ ... })
 export class AppComponent {
-  // Cet observable émettra true/false à chaque changement de page
-  showBreadcrumb$: Observable<boolean>;
+  // On stocke l'URL actuelle dans une variable simple
+  currentUrl: string = '';
 
   constructor(private router: Router) {
-    this.showBreadcrumb$ = this.router.events.pipe(
-      filter(event => event instanceof NavigationEnd),
-      // startWith permet de faire le test dès le premier chargement
-      startWith(null), 
-      map(() => {
-        const url = this.router.url;
-        // Retourne true si on n'est PAS sur l'accueil
-        return url !== '/' && url !== '/accueil';
-      })
-    );
-  }
-}
-*ngIf="showBreadcrumb$ | async"
-
-
-
-
-private addBreadcrumbRecursively(
-  id: BreadcrumbId, 
-  node: ActivatedRouteSnapshot, 
-  crumbs: Breadcrumb[], 
-  visited: Set<BreadcrumbId> = new Set() // Initialisation d'un Set vide
-): void {
-  // 1. CONDITION D'ARRÊT : Si on a déjà traité cet ID, on stoppe la récursion
-  if (visited.has(id)) {
-    console.warn(`Boucle infinie détectée pour le BreadcrumbId: ${id}`);
-    return;
-  }
-
-  const def = BREADCRUMB_DEFINITIONS[id];
-  if (!def) return;
-
-  // Marquer cet ID comme visité
-  visited.add(id);
-
-  // 2. Ajouter l'élément actuel
-  crumbs.push({
-    label: def.label,
-    url: def.url(node.params)
-  });
-
-  // 3. Chercher le parent (soit dans la def, soit dans la route)
-  const parentId = def.parentId || node.data?.['parentId'];
-  
-  if (parentId) {
-    this.addBreadcrumbRecursively(parentId, node, crumbs, visited);
-  }
-}
-
-
-
-
-@Injectable({ providedIn: 'root' })
-export class BreadcrumbService {
-  readonly breadcrumbs$: Observable<Breadcrumb[]>;
-
-  constructor(private router: Router) {
-    this.breadcrumbs$ = this.router.events.pipe(
-      filter(e => e instanceof NavigationEnd),
-      map(() => this.buildBreadcrumbs(this.router.routerState.snapshot.root))
-    );
-  }
-
-  private buildBreadcrumbs(snapshot: ActivatedRouteSnapshot): Breadcrumb[] {
-    const crumbs: Breadcrumb[] = [];
-
-    // On parcourt l'arbre des routes jusqu'à la feuille active
-    let currentRoute: ActivatedRouteSnapshot | null = snapshot;
-    while (currentRoute.firstChild) {
-      currentRoute = currentRoute.firstChild;
-    }
-
-    // Si la route active a un breadcrumbId, on remonte la chaîne
-    const breadcrumbId = currentRoute.data?.['breadcrumbId'] as BreadcrumbId;
-    if (breadcrumbId) {
-      this.addBreadcrumbRecursively(breadcrumbId, currentRoute, crumbs);
-    }
-
-    // On inverse le tableau car on a remonté de l'enfant vers le parent
-    return crumbs.reverse();
-  }
-
-  private addBreadcrumbRecursively(id: BreadcrumbId, node: ActivatedRouteSnapshot, crumbs: Breadcrumb[]): void {
-    const def = BREADCRUMB_DEFINITIONS[id];
-    if (!def) return;
-
-    // 1. Ajouter l'élément actuel
-    crumbs.push({
-      label: def.label,
-      url: def.url(node.params)
+    // Cette partie est CRUCIAL : elle force la mise à jour à chaque clic
+    this.router.events.pipe(
+      filter(event => event instanceof NavigationEnd)
+    ).subscribe(() => {
+      this.currentUrl = this.router.url;
     });
+  }
 
-    // 2. Si un parentId est défini dans la config (BREADCRUMB_DEFINITIONS) 
-    // ou dans la data de la route, on continue la récursion
-    const parentId = def.parentId || node.data?.['parentId'];
-    
-    if (parentId) {
-      this.addBreadcrumbRecursively(parentId, node, crumbs);
-    }
+  // Votre fonction simplifiée
+  isNotHome(): boolean {
+    // On compare avec l'URL stockée qui est mise à jour en temps réel
+    return this.currentUrl !== '/' && this.currentUrl !== '/accueil';
   }
 }
-
-
-
-export const BREADCRUMB_DEFINITIONS = {
-  [BreadcrumbId.CHILD]: {
-    label: 'Enfant',
-    url: (params) => `/parent/${params.id}/child`,
-    parentId: BreadcrumbId.PARENT // <--- La clé de la récursion est ici
-  },
-  [BreadcrumbId.PARENT]: {
-    label: 'Parent',
-    url: () => '/parent',
-    parentId: BreadcrumbId.HOME
-  }
-};
