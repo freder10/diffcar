@@ -1,3 +1,27 @@
+@Component({ ... })
+export class AppComponent {
+  currentUrl: string = '';
+
+  constructor(private router: Router) {
+    // On écoute les changements de route pour mettre à jour l'URL actuelle
+    this.router.events.pipe(
+      filter(event => event instanceof NavigationEnd)
+    ).subscribe((event: NavigationEnd) => {
+      this.currentUrl = event.urlAfterRedirects;
+    });
+  }
+
+  isNotHome(): boolean {
+    // On vérifie si l'URL n'est pas la racine ou l'accueil
+    // Le "/" couvre souvent la page de démarrage
+    return this.currentUrl !== '/' && this.currentUrl !== '/accueil';
+  }
+}
+
+
+
+
+
 private addBreadcrumbRecursively(
   id: BreadcrumbId, 
   node: ActivatedRouteSnapshot, 
