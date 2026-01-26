@@ -1,23 +1,27 @@
+import { Component } from '@angular/core';
+import { Router, NavigationEnd } from '@angular/router';
+import { filter, map, startWith } from 'rxjs/operators';
+import { Observable } from 'rxjs';
+
 @Component({ ... })
 export class AppComponent {
-  currentUrl: string = '';
+  // Cet observable émettra true/false à chaque changement de page
+  showBreadcrumb$: Observable<boolean>;
 
   constructor(private router: Router) {
-    // On écoute les changements de route pour mettre à jour l'URL actuelle
-    this.router.events.pipe(
-      filter(event => event instanceof NavigationEnd)
-    ).subscribe((event: NavigationEnd) => {
-      this.currentUrl = event.urlAfterRedirects;
-    });
-  }
-
-  isNotHome(): boolean {
-    // On vérifie si l'URL n'est pas la racine ou l'accueil
-    // Le "/" couvre souvent la page de démarrage
-    return this.currentUrl !== '/' && this.currentUrl !== '/accueil';
+    this.showBreadcrumb$ = this.router.events.pipe(
+      filter(event => event instanceof NavigationEnd),
+      // startWith permet de faire le test dès le premier chargement
+      startWith(null), 
+      map(() => {
+        const url = this.router.url;
+        // Retourne true si on n'est PAS sur l'accueil
+        return url !== '/' && url !== '/accueil';
+      })
+    );
   }
 }
-
+*ngIf="showBreadcrumb$ | async"
 
 
 
