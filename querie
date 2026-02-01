@@ -1,0 +1,11 @@
+select fron TF_RA_EVENEMENT;
+
+select from tl_ra_eve_login;
+
+select * from tl_ra_eve_dossier;
+
+select from tl_ra_eve_demande;
+
+select from TR RA_eve_propriete;
+
+select * from tl_ra_eve_valeur;
