@@ -1,0 +1,59 @@
+private Specification<TfRcOffresBonus> createSpecificationGetOffresBonus(OffresBonusInputDto inputDto) {
+    return (Root<TfRcOffresBonus> root, CriteriaQuery<?> query, CriteriaBuilder builder) -> {
+
+        final Collection<Predicate> predicates = new ArrayList<>();
+
+        if (query.getResultType() != Long.class && query.getResultType() != long.class) {
+
+            // Subquery pour récupérer les codes uniques
+            Subquery<String> subquery = query.subquery(String.class);
+            Root<TfRcOffresBonus> subRoot = subquery.from(TfRcOffresBonus.class);
+
+            // Appliquer les mêmes joins dans la subquery
+            if (!StringUtils.isEmpty(inputDto.getOfferLabel())) {
+                Join<TfRcOffresBonus, TrRcOffresBonus> subJoin =
+                    subRoot.join(TfRcOffresBonus_.trRcOffresBonus, JoinType.LEFT);
+                String pattern = "%" + inputDto.getOfferLabel().toLowerCase() + "%";
+                subquery.where(builder.like(builder.lower(
+                    subJoin.get(TrRcOffresBonus_.lbOffre)), pattern));
+            }
+
+            subquery.select(subRoot.get(TfRcOffresBonus_.CODE_OFFRE_BONUS)).distinct(true);
+
+            // Filtrer la requête principale avec les codes uniques de la subquery
+            predicates.add(root.get(TfRcOffresBonus_.CODE_OFFRE_BONUS).in(subquery));
+
+            // Fetch propre sans duplication
+            root.fetch(TfRcOffresBonus_.tlRcOffresProdIsins, JoinType.LEFT);
+            root.fetch(TfRcOffresBonus_.trRcOffresBonus, JoinType.LEFT);
+        }
+
+        // Tes autres filtres normalement
+        if (!StringUtils.isEmpty(inputDto.getProductCode())) {
+            String productLowerCase = inputDto.getProductCode().toLowerCase();
+            predicates.add(builder.lower(
+                root.get(TfRcOffresBonus_.CODE_PRODUIT)).in(productLowerCase));
+        }
+
+        if (!StringUtils.isEmpty(inputDto.getOfferCode())) {
+            String offreLowerCase = inputDto.getOfferCode().toLowerCase();
+            predicates.add(builder.lower(
+                root.get(TfRcOffresBonus_.CODE_OFFRE_BONUS)).in(offreLowerCase));
+        }
+
+        if (!StringUtils.isEmpty(inputDto.getStartDate())) {
+            Date startDate = ServiceUtils.strToDate(inputDto.getStartDate());
+            predicates.add(builder.greaterThanOrEqualTo(
+                root.get(TfRcOffresBonus_.dtDebut), startDate));
+        }
+
+        if (!StringUtils.isEmpty(inputDto.getEndDate())) {
+            Date endDate = ServiceUtils.strToDate(inputDto.getEndDate());
+            predicates.add(builder.lessThanOrEqualTo(
+                root.get(TfRcOffresBonus_.dtFin), endDate));
+        }
+
+        query.distinct(true);
+        return builder.and(predicates.toArray(new Predicate[0]));
+    };
+}
