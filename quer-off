@@ -1,3 +1,19 @@
+
+SELECT *
+FROM TF_RC_OFFRES_BONUS t1
+WHERE t1.ID_OFFRE_PROD IN (
+    -- Voici la subquery générée par subquery.select(builder.min(...))
+    SELECT MIN(t2.ID_OFFRE_PROD)
+    FROM TF_RC_OFFRES_BONUS t2
+    GROUP BY t2.CODE_OFFRE_BONUS
+)
+-- Et ici s'ajoutent tes autres filtres (predicates)
+AND t1.CODE_PRODUIT = '902' 
+AND t1.DT_DEBUT >= TO_DATE('2024-01-01', 'YYYY-MM-DD');
+
+
+
+
 SELECT DISTINCT ob.*
 FROM TF_RC_OFFRES_BONUS ob
 LEFT JOIN TL_RC_OFFRES_PROD_ISINS opi ON opi.CODE_OFFRE_BONUS = ob.CODE_OFFRE_BONUS
