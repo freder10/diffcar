@@ -1,0 +1,27 @@
+SELECT DISTINCT ob.*
+FROM TF_RC_OFFRES_BONUS ob
+LEFT JOIN TL_RC_OFFRES_PROD_ISINS opi ON opi.CODE_OFFRE_BONUS = ob.CODE_OFFRE_BONUS
+LEFT JOIN TR_RC_OFFRES_BONUS trob ON trob.CODE_OFFRE_BONUS = ob.CODE_OFFRE_BONUS
+WHERE ob.CODE_OFFRE_BONUS IN (
+
+    -- Subquery : récupère les codes uniques selon les filtres
+    SELECT DISTINCT sub.CODE_OFFRE_BONUS
+    FROM TF_RC_OFFRES_BONUS sub
+    LEFT JOIN TR_RC_OFFRES_BONUS sub_trob ON sub_trob.CODE_OFFRE_BONUS = sub.CODE_OFFRE_BONUS
+
+    WHERE 1=1
+    -- Si offerLabel renseigné
+    AND LOWER(sub_trob.LB_OFFRE) LIKE '%libelle%'
+
+    -- Si productCode renseigné
+    AND LOWER(sub.CODE_PRODUIT) IN ('code_produit')
+
+    -- Si offerCode renseigné
+    AND LOWER(sub.CODE_OFFRE_BONUS) IN ('code_offre')
+
+    -- Si startDate renseigné
+    AND sub.DT_DEBUT >= '2024-01-01'
+
+    -- Si endDate renseigné
+    AND sub.DT_FIN <= '2024-12-31'
+)
