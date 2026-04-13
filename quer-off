@@ -1,3 +1,8 @@
+Subquery<String> subquery = query.subquery(String.class);
+    Root<TfRcOffresBonus> subRoot = subquery.from(TfRcOffresBonus.class);
+    
+    subquery.select(builder.min(subRoot.get("idOffreProd"))) // On prend un ID unique
+            .groupBy(subRoot.get("codeOffreBonus"));
 
 SELECT *
 FROM TF_RC_OFFRES_BONUS t1
