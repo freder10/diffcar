@@ -1,53 +1,46 @@
-public List<OffreBonusComplet> getOffresBonusEnrichies(OffresBonusInputDto input) {
-    
-    // 1. Récupération des offres UNIQUES via la Specification (Subquery least)
-    // Cette liste contient une seule ligne par CODE_OFFRE_BONUS
-    List<TfRcOffresBonus> offresUniques = tfRcOffresBonusRepository.findAll(createSpecification(input));
-
+public List<OffresBonusOutputDto> mapperEtEnrichir(List<TfRcOffresBonus> offresUniques) {
     if (offresUniques.isEmpty()) {
         return Collections.emptyList();
     }
 
-    // 2. Extraire les codes des offres pour récupérer toutes les relations rattachées
-    List<String> codesOffresUniques = offresUniques.stream()
+    // 1. Extraire les codes offres
+    List<String> codesOffres = offresUniques.stream()
             .map(TfRcOffresBonus::getCodeOffreBonus)
             .distinct()
             .collect(Collectors.toList());
 
-    // 3. Récupérer TOUTES les lignes de la table de jointure pour ces offres
-    // (C'est ici qu'on récupère les doublons de codes offres pour avoir tous les produits)
-    List<TfRcOffresBonus> toutesLesRelations = tfRcOffresBonusRepository.findByCodeOffreBonusIn(codesOffresUniques);
+    // 2. Récupérer toutes les lignes de jointure
+    List<TfRcOffresBonus> toutesLesRelations = offresBonusRepo.findByCodeOffreBonusIn(codesOffres);
 
-    // 4. Extraire les IDs produits et charger les entités PRODUIT
-    List<String> idsProduits = toutesLesRelations.stream()
-            .map(TfRcOffresBonus::getIdProduit)
-            .filter(Objects::nonNull)
+    // 3. Récupérer les entités PRODUIT
+    List<String> tousLesCodesProduits = toutesLesRelations.stream()
+            .map(TfRcOffresBonus::getCodeProduit) // Nom exact du champ dans Image 2
             .distinct()
             .collect(Collectors.toList());
 
-    Map<String, Produit> mapProduitsRefs = produitRepository.findByIdPolprodIn(idsProduits).stream()
-            .collect(Collectors.toMap(Produit::getIdPolprod, p -> p));
+    Map<String, TrRpProduit> mapProduitsRefs = productRepo.findByIdPolprodIn(tousLesCodesProduits).stream()
+            .collect(Collectors.toMap(TrRpProduit::getIdPolprod, p -> p));
 
-    // 5. Créer le pivot (Regroupement des objets Produit par Code Offre)
-    Map<String, List<Produit>> produitsParOffre = toutesLesRelations.stream()
-            .filter(rel -> mapProduitsRefs.containsKey(rel.getIdProduit()))
+    // 4. Groupement des produits par Code Offre
+    Map<String, List<TrRpProduit>> produitsParOffre = toutesLesRelations.stream()
+            .filter(rel -> mapProduitsRefs.containsKey(rel.getCodeProduit()))
             .collect(Collectors.groupingBy(
                 TfRcOffresBonus::getCodeOffreBonus,
-                Collectors.mapping(rel -> mapProduitsRefs.get(rel.getIdProduit()), Collectors.toList())
+                Collectors.mapping(
+                    rel -> mapProduitsRefs.get(rel.getCodeProduit()), 
+                    Collectors.toList()
+                )
             ));
 
-    // 6. Assemblage final dans le DTO
+    // 5. Assemblage final vers le DTO
     return offresUniques.stream().map(offre -> {
-        OffreBonusComplet dto = new OffreBonusComplet();
-        
-        // Mapping des infos de l'offre (selon tes besoins)
-        dto.setIdOffreProd(offre.getIdOffreProd());
+        OffresBonusOutputDto dto = new OffresBonusOutputDto();
         dto.setCodeOffreBonus(offre.getCodeOffreBonus());
-        dto.setLabelle(offre.getLabelle()); // Champ mentionné dans ton premier message
+        // Ajoute ici tes autres setters (ex: dto.setMtMin(offre.getMtMin()))
         
-        // Injection de la liste des produits regroupés
-        List<Produit> listeAssociee = produitsParOffre.getOrDefault(offre.getCodeOffreBonus(), new ArrayList<>());
-        dto.setProduits(listeAssociee);
+        // On récupère la liste des produits pour cette offre
+        List<TrRpProduit> produitsAssocies = produitsParOffre.getOrDefault(offre.getCodeOffreBonus(), new ArrayList<>());
+        dto.setProduits(produitsAssocies);
         
         return dto;
     }).collect(Collectors.toList());
