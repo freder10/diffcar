@@ -1,0 +1,122 @@
+public PaginatedResultOutputDto<OffresBonusOutputDto> getOffresBonusUnique(OffresBonusInputDto offresBonusInputDto) {
+    
+    // 1. Préparation de la pagination
+    Pageable page = PageableUtils.getPageFromInput(offresBonusInputDto, OffresBonusSortBy.class);
+    
+    // 2. Création de la Specification (celle avec la Subquery pour l'unicité)
+    Specification<TfRcOffresBonus> spec = createSpecificationGetOffresBonusUnique(offresBonusInputDto);
+    
+    // 3. Récupération de la page d'entités "uniques"
+    Page<TfRcOffresBonus> offresBonusPage = offresBonusRepo.findAll(spec, page);
+
+    // 4. Conversion de la Page en Liste pour l'enrichissement
+    List<TfRcOffresBonus> listFromPage = offresBonusPage.getContent();
+
+    // 5. Appel de ta fonction d'enrichissement (3 requêtes SQL au total)
+    // Elle renvoie une List<OffresBonusOutputDto> déjà mappée et enrichie
+    List<OffresBonusOutputDto> outputDtoList = mapperEtEnrichir(listFromPage);
+
+    // 6. Construction de la réponse paginée
+    PaginationSummaryOutputDto paginationSummary = new PaginationSummaryOutputDto(offresBonusPage);
+    
+    return new PaginatedResultOutputDto<>(paginationSummary, outputDtoList, "bonusOffers");
+}
+
+
+// Dans ton Service, la fin de la méthode mapperEtEnrichir :
+return offresUniques.stream().map(offre -> {
+    
+    // On récupère la liste des produits correspondante (venant de ta Map pivot)
+    List<TrRpProduit> listeProduits = produitsParOffre.getOrDefault(offre.getCodeOffreBonus(), new ArrayList<>());
+    
+    // On appelle le nouveau constructeur qui fait tout le mapping complexe
+    return new OffresBonusOutputDto(offre, listeProduits);
+
+}).collect(Collectors.toList());
+
+
+@Getter
+@Setter
+@NoArgsConstructor
+public class OffresBonusOutputDto implements Serializable {
+
+    @JsonProperty("uniqueId")
+    private String idOffreProd;
+
+    @JsonProperty("offer")
+    private OffreOutputDto offer;
+
+    @JsonProperty("products") // Nouvelle liste enrichie
+    private List<ProductOutputDto> products;
+
+    @JsonProperty("startDate")
+    private Date dtDebut;
+
+    @JsonProperty("endDate")
+    private Date dtFin;
+
+    @JsonProperty("minAmount")
+    private BigDecimal mtMin;
+
+    @JsonProperty("minUCRate")
+    private BigDecimal tauxMinUc;
+
+    @JsonProperty("funds")
+    private List<FundsOutputDto> funds;
+
+    @JsonProperty("formule")
+    private FormuleOutputDto formule;
+
+    @JsonProperty("numOrder")
+    private Long numOrdre;
+
+    @JsonProperty("hasToUpload")
+    private boolean topTeleverser;
+
+    @JsonProperty("operations")
+    private List<OffreBonusOperationOutputDto> operations;
+
+    // --- LE NOUVEAU CONSTRUCTEUR ---
+    public OffresBonusOutputDto(TfRcOffresBonus entity, List<TrRpProduit> produitsEnrichis) {
+        // 1. Mapping de base (repris de tes images 6d202b...)
+        this.idOffreProd = entity.getIdOffreProd();
+        this.dtDebut = entity.getDtDebut();
+        this.dtFin = entity.getDtFin();
+        this.mtMin = entity.getMtMin();
+        this.tauxMinUc = entity.getTauxMinUc();
+        this.numOrdre = entity.getNumOrdre();
+        this.topTeleverser = "O".equals(entity.getTopTeleverser()); // Adaptation de ta constante
+
+        // 2. Mapping de l'Offre (Image 6d202b, ligne 88)
+        this.offer = new OffreOutputDto();
+        this.offer.setCodeOffre(entity.getCodeOffreBonus());
+        if (entity.getTrRcOffresBonus() != null) {
+            this.offer.setLbOffre(entity.getTrRcOffresBonus().getLbOffre());
+        }
+
+        // 3. Mapping des Produits Enrichis (La nouveauté)
+        if (produitsEnrichis != null) {
+            this.products = produitsEnrichis.stream().map(p -> {
+                ProductOutputDto pDto = new ProductOutputDto();
+                pDto.setCodeProduit(p.getIdPolprod()); // Ton champ technique
+                // Ajoute pDto.setLabel(p.getLabel()) si tu as le champ
+                return pDto;
+            }).collect(Collectors.toList());
+        }
+
+        // 4. Mapping des Fonds (Image 9e39d1...)
+        if (!CollectionUtils.isEmpty(entity.getTlRcOffresProdIsins())) {
+            this.funds = entity.getTlRcOffresProdIsins().stream().map(fund -> {
+                FundsOutputDto fDto = new FundsOutputDto();
+                fDto.setIsinCode(fund.getId().getCodeIsin());
+                fDto.setIsMandatory(false); // Logique simplifiée ici, reprends ton filtre findFirst() si besoin
+                return fDto;
+            }).collect(Collectors.toList());
+        }
+
+        // 5. Mapping Formule et Opérations (Image 165fbe...)
+        // Recopie ici ta logique pour 'formule' et 'operations'
+    }
+}
+
+
