@@ -1,0 +1,51 @@
+public List<OffreBonusComplet> mapperEtEnrichir(List<TfRcOffresBonus> offresUniques) {
+    if (offresUniques.isEmpty()) return Collections.emptyList();
+
+    // 1. Extraire les codes offres pour récupérer TOUTES les relations
+    List<String> codesOffres = offresUniques.stream()
+            .map(TfRcOffresBonus::getCodeOffreBonus)
+            .toList();
+
+    // 2. Récupérer toutes les lignes de jointure pour avoir tous les produits par offre
+    List<TfRcOffresBonus> toutesLesRelations = repository.findByCodeOffreBonusIn(codesOffres);
+
+    // 3. Récupérer les entités PRODUIT pour avoir les labels (si besoin)
+    List<String> tousLesCodesProduits = toutesLesRelations.stream()
+            .map(TfRcOffresBonus::getCodeProduit)
+            .distinct()
+            .toList();
+    
+    Map<String, Produit> mapProduitsRefs = produitRepository.findAllById(tousLesCodesProduits)
+            .stream().collect(Collectors.toMap(Produit::getCodeProduit, p -> p));
+
+    // 4. Grouper les produits par Code Offre
+    Map<String, List<Produit>> produitsParOffre = toutesLesRelations.stream()
+            .map(rel -> mapProduitsRefs.get(rel.getCodeProduit()))
+            .filter(Objects::nonNull)
+            .collect(Collectors.groupingBy(
+                p -> p.getCodeOffreAssocie(), // Il faut que ton entité Produit ou Relation permette de remonter au code offre
+                Collectors.toList()
+            ));
+    
+    // Si tu n'as pas le code offre dans l'objet Produit, utilise la relation :
+    Map<String, List<Produit>> regroupement = toutesLesRelations.stream()
+        .filter(rel -> mapProduitsRefs.containsKey(rel.getCodeProduit()))
+        .collect(Collectors.groupingBy(
+            TfRcOffresBonus::getCodeOffreBonus,
+            Collectors.mapping(rel -> mapProduitsRefs.get(rel.getCodeProduit()), Collectors.toList())
+        ));
+
+    // 5. Construction finale des DTOs
+    return offresUniques.stream().map(offre -> {
+        OffreBonusComplet dto = new OffreBonusComplet();
+        dto.setIdOffreProd(offre.getIdOffreProd());
+        dto.setCodeOffreBonus(offre.getCodeOffreBonus());
+        dto.setMtMin(offre.getMtMin());
+        // ... mapping des autres champs
+        
+        // On attache la liste des produits correspondante
+        dto.setProduits(regroupement.getOrDefault(offre.getCodeOffreBonus(), new ArrayList<>()));
+        
+        return dto;
+    }).toList();
+}
