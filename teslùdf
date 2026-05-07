@@ -1,0 +1,25 @@
+1. Renommage et Cohérence
+L'idée de renommer grouped en affected est logique pour indiquer si l'offre est assignée.
+
+Endpoint : /offre-bonus-affected
+
+Action : Supprimer l'inclusion systématique de l'objet produit complet pour alléger la réponse.
+
+Affinement : Si cet endpoint sert à lister les offres actives, assurez-vous de ne renvoyer que les métadonnées essentielles. La jointure avec la table produit ne doit servir qu'à filtrer ou récupérer les dates (date_debut, date_fin).
+
+2. Nouveaux Endpoints (Détails & Relations)
+Pour éviter les réponses trop lourdes (le "Payload Bloat"), l'approche granulaire est la meilleure.
+
+A. Détails de l'offre
+Path : GET /offre-bonus/{id}/details
+
+Usage : Récupérer la configuration complète.
+
+Affinement : Au lieu de "tout" renvoyer par défaut, vous pourriez utiliser un paramètre embed ou include (ex: ?include=operations,produits) pour permettre au front-end de choisir ce dont il a besoin.
+
+B. Liste des produits liés
+Path : GET /offre-bonus/{id}/products
+
+Pagination : Indispensable (déjà noté dans votre texte : page, size).
+
+Affinement : Assurez-vous que le format de réponse suit un standard (ex: { "content": [...], "totalElements": 100, "totalPages": 5 }).
