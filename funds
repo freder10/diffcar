@@ -1,0 +1,28 @@
+from((this.offerForm.get("funds") as FormArray).controls)
+  .pipe(
+    concatMap((control: AbstractControl, index: number) => {
+      const group = control as FormGroup;
+      const fund = funds[index];
+      const request: SearchFundDetailsRequest = {
+        isinCode: fund.isinCode,
+      };
+
+      return this.supportService.getSupports(request).pipe(
+        catchError((err) => {
+          console.error("Erreur lors de la récupération du fonds :", err);
+          return of(null);
+        }),
+        filter(
+          (data: any) => data?.fund?.length && data.fund[0].isinCode,
+        ),
+        tap((data: any) => {
+          group.patchValue({ label: data.fund[0].label });
+        }),
+        catchError((err) => {
+          console.error(`Fonds ${fund.isinCode} n'existe pas`);
+          return of(null);
+        }),
+      );
+    }),
+  )
+  .subscribe();
