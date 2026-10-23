@@ -1,54 +1,36 @@
 @ResponseBody
 @ExceptionHandler(HttpMessageNotReadableException.class)
-public ResponseEntity<CRefError> handleHttpMessageNotReadable(HttpMessageNotReadableException ex) {
+public ResponseEntity<CRefError> handleHttpMessageNotReadableException(HttpMessageNotReadableException ex) {
+    LOGGER.error("HttpMessageNotReadableException catched in handleHttpMessageNotReadableException", ex);
+
     CRefError cRefError = new CRefError();
-    HttpStatus httpStatus = HttpStatus.BAD_REQUEST;
-
-    LOGGER.error("HttpMessageNotReadableException catched in handleHttpMessageNotReadable", ex);
-
     List<ErrorDetailsDTO> errorDetailDTOS = new ArrayList<>();
+    HttpStatus httpStatus = BAD_REQUEST;
     cRefError.setStatus(httpStatus.value());
     cRefError.setErrors(errorDetailDTOS);
 
-    ErrorDetailsDTO errorDetailsDTO = new ErrorDetailsDTO();
+    String field = NOT_DEFINED;
+    String label = ex.getMessage();
+
     Throwable cause = ex.getCause();
-
-    if (cause instanceof InvalidFormatException) {
-        InvalidFormatException ife = (InvalidFormatException) cause;
-        String field = buildPath(ife.getPath());
-
-        String label = (ife.getTargetType() != null && Number.class.isAssignableFrom(ife.getTargetType()))
-                ? "Valeur numérique invalide"
-                : "Format invalide pour le champ " + field;
-
-        errorDetailsDTO.setLabelError(label);
-        errorDetailsDTO.setField(field);      // à adapter si le setter s'appelle autrement
-
-    } else if (cause instanceof MismatchedInputException) {
+    if (cause instanceof MismatchedInputException) {   // InvalidFormatException en hérite
         MismatchedInputException mie = (MismatchedInputException) cause;
-        errorDetailsDTO.setLabelError("Format JSON invalide");
-        errorDetailsDTO.setField(buildPath(mie.getPath()));
-
-    } else {
-        errorDetailsDTO.setLabelError("Corps de requête illisible");
-    }
-
-    errorDetailDTOS.add(errorDetailsDTO);
-
-    return new ResponseEntity<>(cRefError, new HttpHeaders(), httpStatus);
-}
-
-private String buildPath(List<JsonMappingException.Reference> path) {
-    StringBuilder sb = new StringBuilder();
-    for (JsonMappingException.Reference ref : path) {
-        if (ref.getFieldName() != null) {
-            if (sb.length() > 0) {
-                sb.append('.');
+        try {
+            field = buildPath(mie.getPath());
+        } catch (Exception e) {
+            LOGGER.warn("Cannot get field from exception");
+        }
+        if (cause instanceof InvalidFormatException) {
+            Class<?> target = ((InvalidFormatException) cause).getTargetType();
+            if (target != null && Number.class.isAssignableFrom(target)) {
+                label = "Valeur numérique invalide";
             }
-            sb.append(ref.getFieldName());
-        } else if (ref.getIndex() >= 0) {
-            sb.append('[').append(ref.getIndex()).append(']');
         }
     }
-    return sb.toString();
+
+    ErrorDetailsDTO details = new ErrorDetailsDTO(label, NOT_DEFINED, field);
+    errorDetailDTOS.add(details);
+
+    LOGGER.error(BAD_REQUEST_ERROR_RESPONSE);
+    return new ResponseEntity<>(cRefError, new HttpHeaders(), httpStatus);
 }
