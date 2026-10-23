@@ -1,3 +1,16 @@
+private ResponseEntity<Map<String, Object>> buildErrorResponse(String label, String code, String field) {
+    Map<String, Object> error = new LinkedHashMap<>();
+    error.put("label", label);
+    error.put("code", code);
+    error.put("field", field);
+
+    Map<String, Object> body = new LinkedHashMap<>();
+    body.put("status", 400);
+    body.put("errors", Collections.singletonList(error));
+
+    return ResponseEntity.badRequest().body(body);
+}
+
 @ExceptionHandler(HttpMessageNotReadableException.class)
 public ResponseEntity<?> handleNotReadable(HttpMessageNotReadableException ex) {
 
