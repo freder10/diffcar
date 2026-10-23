@@ -1,37 +1,54 @@
-private ResponseEntity<Map<String, Object>> buildErrorResponse(String label, String code, String field) {
-    Map<String, Object> error = new LinkedHashMap<>();
-    error.put("label", label);
-    error.put("code", code);
-    error.put("field", field);
-
-    Map<String, Object> body = new LinkedHashMap<>();
-    body.put("status", 400);
-    body.put("errors", Collections.singletonList(error));
-
-    return ResponseEntity.badRequest().body(body);
-}
-
+@ResponseBody
 @ExceptionHandler(HttpMessageNotReadableException.class)
-public ResponseEntity<?> handleNotReadable(HttpMessageNotReadableException ex) {
+public ResponseEntity<CRefError> handleHttpMessageNotReadable(HttpMessageNotReadableException ex) {
+    CRefError cRefError = new CRefError();
+    HttpStatus httpStatus = HttpStatus.BAD_REQUEST;
 
+    LOGGER.error("HttpMessageNotReadableException catched in handleHttpMessageNotReadable", ex);
+
+    List<ErrorDetailsDTO> errorDetailDTOS = new ArrayList<>();
+    cRefError.setStatus(httpStatus.value());
+    cRefError.setErrors(errorDetailDTOS);
+
+    ErrorDetailsDTO errorDetailsDTO = new ErrorDetailsDTO();
     Throwable cause = ex.getCause();
 
     if (cause instanceof InvalidFormatException) {
         InvalidFormatException ife = (InvalidFormatException) cause;
-
         String field = buildPath(ife.getPath());
-        String label = Number.class.isAssignableFrom(ife.getTargetType())
+
+        String label = (ife.getTargetType() != null && Number.class.isAssignableFrom(ife.getTargetType()))
                 ? "Valeur numérique invalide"
                 : "Format invalide pour le champ " + field;
 
-        return buildErrorResponse(label, "-", field);
-    }
+        errorDetailsDTO.setLabelError(label);
+        errorDetailsDTO.setField(field);      // à adapter si le setter s'appelle autrement
 
-    if (cause instanceof MismatchedInputException) {
+    } else if (cause instanceof MismatchedInputException) {
         MismatchedInputException mie = (MismatchedInputException) cause;
-        return buildErrorResponse("Format JSON invalide", "-", buildPath(mie.getPath()));
+        errorDetailsDTO.setLabelError("Format JSON invalide");
+        errorDetailsDTO.setField(buildPath(mie.getPath()));
+
+    } else {
+        errorDetailsDTO.setLabelError("Corps de requête illisible");
     }
 
-    // comportement existant pour les autres cas
-    return /* ton code actuel */;
+    errorDetailDTOS.add(errorDetailsDTO);
+
+    return new ResponseEntity<>(cRefError, new HttpHeaders(), httpStatus);
+}
+
+private String buildPath(List<JsonMappingException.Reference> path) {
+    StringBuilder sb = new StringBuilder();
+    for (JsonMappingException.Reference ref : path) {
+        if (ref.getFieldName() != null) {
+            if (sb.length() > 0) {
+                sb.append('.');
+            }
+            sb.append(ref.getFieldName());
+        } else if (ref.getIndex() >= 0) {
+            sb.append('[').append(ref.getIndex()).append(']');
+        }
+    }
+    return sb.toString();
 }
